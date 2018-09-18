@@ -1,0 +1,96 @@
+---
+title: "PredictionAssignment"
+author: "mansipriya"
+date: "September 18, 2018"
+output: html_document
+---
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to
+collect a large amount of data about personal activity relatively inexpensively. These
+type of devices are part of the quantified self movement - a group of enthusiasts who
+take measurements about themselves regularly to improve their health, to find patterns 
+in their behavior, or because they are tech geeks. One thing that people regularly do is
+quantify how much of a particular activity they do, but they rarely quantify how well 
+they do it. In this project, my goal will be to use data from accelerometers on the 
+belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell 
+lifts correctly and incorrectly in 5 different ways. More information is available 
+from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the
+Weight Lifting Exercise Dataset)
+
+### Getting the data
+```{r}
+training_url <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+test_url <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+training <- read.csv(url(training_url))
+test <- read.csv(url(test_url))
+```
+### Analyzing the data
+
+```{r}
+dim(training)
+head(training)
+dim(test)
+head(test)
+```
+
+We can see lot of NAs are present in the dataset. Lets first remove that
+
+```{r}
+training <- training[, colSums(is.na(training)) == 0]
+test <- test[, colSums(is.na(test)) == 0] 
+## Removing unnecessary data
+classe<- training$classe
+trainRemove<- grepl("^X|timestamp|window", names(training))
+training<- training[, !trainRemove]
+training<- training[, sapply(training, is.numeric)]
+training$classe <- classe
+testRemove<- grepl("^X|timestamp|window", names(test))
+test<- test[, !testRemove]
+test<- test[, sapply(test, is.numeric)]
+```
+### Explopratory Data Analysis
+```{r}
+class_table <- data.frame(table(training$classe))
+library(ggplot2)
+qplot(x = class_table$Var1, y = class_table$Freq,data = class_table, geom = "point", xlab = "Activity", ylab = "Count")
+```
+We can see Activity A is the most Frequent activity done by people
+
+Now lets create training and test set
+```{r}
+library(caret)
+set.seed(12345)
+inTrain <- createDataPartition(training$classe, p=0.70, list=F)
+train_data <- training[inTrain, ]
+test_data <- training[-inTrain, ]
+```
+
+### Model Training
+```{r}
+## Lets firt try decision tree
+fit1 <- train(classe~.,data = train_data, method = "rpart")
+library(rattle)
+fancyRpartPlot(fit1$finalModel)
+```
+
+Lets check accuracy of this model
+```{r}
+pred <- predict(fit1,test_data)
+confusionMatrix(test_data$classe , pred)
+```
+
+As we can see accuracy is quite low. lets try with another model
+
+```{r}
+fit2 <- train(classe ~., data=train_data, method="rf",  trControl=trainControl(method="cv", 5), ntree=100)
+pred <- predict(fit2,test_data)
+confusionMatrix(test_data$classe , pred)
+```
+
+In this model we get  accuracy around 99%. Hence this model is a good one to rely on for predictions.
+
+## Predicting for test data
+
+```{r}
+test_pred <- predict(fit2 , test)
+test_pred
+```
